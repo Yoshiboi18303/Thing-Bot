@@ -1,7 +1,7 @@
-import { CommandObject, CommandType } from "wokcommands";
+import { CommandObject, CommandType, CooldownTypes } from "wokcommands";
 import Users from "../schemas/UserSchema";
 import { EmbedBuilder } from "discord.js";
-import { findOneUser, getPersonWithUser } from "../utils";
+import { failCommand, findOneUser, getPersonWithUser } from "../utils";
 
 export default {
     description: "Release someone (giving them some mercy).",
@@ -11,37 +11,30 @@ export default {
     maxArgs: 1,
     expectedArgs: "<@user>",
     reply: true,
-    callback: async ({ message }) => {
+    cooldowns: {
+        type: CooldownTypes.perUser,
+        duration: "5 s",
+        errorMessage: "Please wait for {TIME} to release another person!",
+    },
+    callback: async ({ message, cancelCooldown }) => {
         const userToRelease = message!.mentions.users.first();
         const author = message!.author;
 
-        if (!userToRelease) {
-            const embed = new EmbedBuilder()
-                .setTitle("Error")
-                .setColor("#FF0000")
-                .setDescription("Please mention a user.");
-
-            return {
-                embeds: [embed],
-            };
-        }
+        if (!userToRelease)
+            return failCommand("Please mention a user.", cancelCooldown);
 
         const EndUser = await findOneUser(author.id);
         const OtherUser = await findOneUser(userToRelease.id);
         const userWithOtherUser = (await getPersonWithUser(OtherUser))
             .document!;
 
-        if (author.id !== userWithOtherUser.id!) {
-            const notHoldingUserEmbed = new EmbedBuilder()
-                .setColor("#FF0000")
-                .setDescription(
-                    `You are not the holder of **\`${userToRelease.username}\`**!`
-                );
-
-            return {
-                embeds: [notHoldingUserEmbed],
-            };
-        }
+        if (author.id !== userWithOtherUser?.id)
+            return failCommand(
+                `You are not the holder of **\`${userToRelease.username}\`**!`,
+                cancelCooldown,
+                null,
+                false
+            );
 
         const updatedPeopleInStomach = EndUser.peopleInStomach!.filter(
             (person) => person !== userToRelease.id

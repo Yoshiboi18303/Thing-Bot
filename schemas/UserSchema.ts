@@ -1,9 +1,5 @@
 import { Schema, model } from "mongoose";
-
-type HexCodeResolvable = `#${string}`;
-export type ItemAmount = {
-    [name: string]: number;
-};
+import { HexCodeResolvable, ItemAmount } from "../utils";
 
 /**
  * Represents a User document on MongoDB
@@ -65,6 +61,18 @@ export interface IUser {
      * Whether the user can be eaten or not
      */
     usable?: boolean;
+    /**
+     * The user's current daily streak.
+     */
+    dailyStreak?: number;
+    /**
+     * The last time the user has claimed their daily reward.
+     */
+    lastDailyReward?: Date;
+    /**
+     * When the user's streak will expire.
+     */
+    streakExpirationDate?: Date;
 }
 
 const OptionalNumber = {
@@ -116,6 +124,15 @@ const userSchema = new Schema<IUser>({
     usable: {
         type: Boolean,
         default: true,
+    },
+    dailyStreak: OptionalNumber,
+    lastDailyReward: {
+        type: Date,
+        default: new Date(),
+    },
+    streakExpirationDate: {
+        type: Date,
+        default: new Date(),
     },
 });
 

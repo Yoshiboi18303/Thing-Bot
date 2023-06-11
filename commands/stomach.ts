@@ -1,7 +1,6 @@
 import { CommandObject, CommandType } from "wokcommands";
-import Users from "../schemas/UserSchema";
-import { EmbedBuilder, APIEmbedField } from "discord.js";
-import { findOneUser } from "../utils";
+import { EmbedBuilder } from "discord.js";
+import { findOneUser, makeField } from "../utils";
 
 export default {
     description: "Check out your (or someone else's) stomach stats",
@@ -15,22 +14,8 @@ export default {
         const user = message!.mentions.users.first() || message!.author;
         const EndUser = await findOneUser(user.id);
 
-        function makeField(
-            name: string,
-            value: string,
-            inline = false
-        ): APIEmbedField {
-            return {
-                name,
-                value,
-                inline,
-            };
-        }
-
         const username =
-            user.username === message!.author.username
-                ? "Your"
-                : `${user.username}'s`;
+            user.id === message!.author.id ? "Your" : `${user.username}'s`;
 
         const embed = new EmbedBuilder()
             .setColor(EndUser.stomachColor!)

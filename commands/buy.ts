@@ -1,7 +1,9 @@
 import { CommandObject, CommandType } from "wokcommands";
 import Users from "../schemas/UserSchema";
 import { EmbedBuilder } from "discord.js";
-import ShopItems from "../utils/ShopItems";
+import { getItem } from "../utils/ShopItems";
+import { ItemPurchaseStatus } from "../classes/Item";
+import { prependString } from "../utils";
 
 const itemIdsToNotAdd: string[] = ["competition"];
 
@@ -16,7 +18,7 @@ export default {
     callback: async ({ message, args }) => {
         const itemId = args[0];
         const quantity = parseInt(args[1] || "1");
-        const item = ShopItems.find((shopItem) => shopItem.id === itemId);
+        const item = getItem(itemId);
         const author = message!.author;
 
         if (!item) {
@@ -41,31 +43,69 @@ export default {
             };
         }
 
-        let success: boolean;
+        if (quantity < 1) {
+            const embed = new EmbedBuilder()
+                .setColor("#FF0000")
+                .setDescription(
+                    "You have to buy at least 1 item, come on bruh."
+                );
+
+            return {
+                embeds: [embed],
+            };
+        }
+
+        let status: ItemPurchaseStatus;
 
         if (itemIdsToNotAdd.includes(item.id))
-            success = await item.buy(author.id, quantity, false);
-        else success = await item.buy(author.id, quantity);
+            status = await item.buy(author.id, quantity, false);
+        else status = await item.buy(author.id, quantity);
 
-        if (!success) {
+        if (!status.success) {
             const failedEmbed = new EmbedBuilder()
                 .setColor("#FF0000")
                 .setDescription(
-                    `Purchase of **${item.name}** failed, you have not been charged.`
-                );
+                    `Purchase of **${item.name}** failed. Please view the **\`Message\`** field for more details!`
+                )
+                .addFields([
+                    {
+                        name: "Message",
+                        value: status.message,
+                        inline: true,
+                    },
+                ]);
+
+            if (status.error)
+                failedEmbed.addFields([
+                    {
+                        name: "Error",
+                        value: `${status.error}`,
+                        inline: true,
+                    },
+                ]);
 
             return {
                 embeds: [failedEmbed],
             };
         } else {
-            if (item.id === "competition") {
+            const isCompetition = item.id === "competition";
+            let statusText = "Your data should have been updated and saved.";
+
+            if (isCompetition) {
+                const stomachCapacityIncrement = Math.ceil(
+                    Math.random() * (11 * quantity)
+                );
+                statusText = prependString(
+                    statusText,
+                    `After the eating competition, your stomach capacity has gone up by **${stomachCapacityIncrement}**!`
+                );
                 const UpdatedEndUser = await Users.findOneAndUpdate(
                     {
                         id: author.id,
                     },
                     {
                         $inc: {
-                            stomachCapacity: Math.ceil(Math.random() * 11),
+                            stomachCapacity: stomachCapacityIncrement,
                         },
                     }
                 );
@@ -76,7 +116,7 @@ export default {
             const successEmbed = new EmbedBuilder()
                 .setColor("#00FF02")
                 .setDescription(
-                    `**${quantity}** of **${item.name}** purchased! Your data should have been updated and saved.`
+                    `**${quantity}** of **${item.name}** purchased! ${statusText}`
                 );
 
             return {

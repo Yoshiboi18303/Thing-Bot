@@ -1,7 +1,12 @@
 import { CommandObject, CommandType, CooldownTypes } from "wokcommands";
 import Users from "../schemas/UserSchema";
 import { EmbedBuilder } from "discord.js";
-import { findOneUser, getPersonWithUser } from "../utils";
+import {
+    failCommand,
+    findOneUser,
+    getPersonWithUser,
+    removeOneItem,
+} from "../utils";
 
 export default {
     description: "Turn someone into your dinner",
@@ -11,51 +16,36 @@ export default {
     maxArgs: 1,
     expectedArgs: "<@user>",
     reply: true,
-    /*cooldowns: {
+    cooldowns: {
         type: CooldownTypes.perUser,
         duration: "1 m",
-    },*/
-    callback: async ({ client, message }) => {
+        errorMessage:
+            "You need to chillax with that, calm it down for **{TIME}**.",
+    },
+    callback: async ({ client, message, cancelCooldown }) => {
         const author = message!.author;
         const userToEat = message?.mentions.users.first();
 
-        if (!userToEat) {
-            const embed = new EmbedBuilder()
-                .setTitle("Error")
-                .setColor("#FF0000")
-                .setDescription("Please mention a user.");
+        if (!userToEat)
+            return failCommand("Please mention a user!", cancelCooldown);
 
-            return {
-                embeds: [embed],
-            };
-        }
-
-        if (userToEat.id === author.id) {
-            const embed = new EmbedBuilder()
-                .setColor("#FF0000")
-                .setDescription(
-                    "You can't eat yourself, what is this? The fucking Matrix?!"
-                )
-                .setFooter({
+        if (userToEat.id === author.id)
+            return failCommand(
+                "You can't eat yourself, what is this? The fucking Matrix?!",
+                cancelCooldown,
+                {
                     text: "No. No it's not.",
-                });
+                },
+                false
+            );
 
-            return {
-                embeds: [embed],
-            };
-        }
-
-        if (userToEat.bot) {
-            const embed = new EmbedBuilder()
-                .setColor("#FF0000")
-                .setDescription(
-                    "Leave my kind alone, what did they ever do to you?"
-                );
-
-            return {
-                embeds: [embed],
-            };
-        }
+        if (userToEat.bot)
+            return failCommand(
+                "Leave my kind alone, what did they ever do to you?",
+                cancelCooldown,
+                null,
+                false
+            );
 
         const EndUser = await findOneUser(author.id);
         const OtherUser = await findOneUser(userToEat.id);
@@ -74,17 +64,15 @@ export default {
             const userWithEndUser = (await getPersonWithUser(EndUser))
                 .document!;
             const user = client.users.cache.get(userWithEndUser.id);
-            const embed = new EmbedBuilder()
-                .setColor("#FF0000")
-                .setDescription(
-                    `Sorry, but you're inside of ${
-                        user?.username || "Unknown User"
-                    }'s stomach, you can't do anything while they have you.`
-                );
 
-            return {
-                embeds: [embed],
-            };
+            return failCommand(
+                `Sorry, but you're inside of ${
+                    user?.username || "Unknown User"
+                }'s stomach, you can't do anything while they have you.`,
+                cancelCooldown,
+                null,
+                false
+            );
         }
 
         if (OtherUser.inStomach) {
@@ -102,27 +90,91 @@ export default {
                     ? "just enjoy them, they're already inside of you."
                     : baseOtherText
                 : baseOtherText;
-            const embed = new EmbedBuilder()
-                .setColor("#FF0000")
-                .setDescription(
-                    `Sorry, but ${userToEat.username} is inside of ${username} stomach, ${otherText}`
-                );
 
-            return {
-                embeds: [embed],
-            };
+            return failCommand(
+                `Sorry, but ${userToEat.username} is inside of ${username} stomach, ${otherText}`,
+                cancelCooldown,
+                null,
+                false
+            );
         }
 
-        if (EndUser.amountOfPeopleInStomach! >= EndUser.stomachCapacity!) {
-            const embed = new EmbedBuilder()
-                .setColor("#FF0000")
-                .setDescription(
-                    "You're completely full, one more person and you're gonna pop like a balloon. Please either release one person or digest."
+        if (EndUser.amountOfPeopleInStomach! >= EndUser.stomachCapacity!)
+            return failCommand(
+                "You're completely full, one more person and you're gonna pop like a balloon. Please either release one person or digest.",
+                cancelCooldown,
+                null,
+                false
+            );
+
+        if (OtherUser.items!["poison"] > 0) {
+            const merciful = Math.random() > 0.7;
+            const bonesInStomach = EndUser.bonesInStomach!;
+            await removeOneItem("poison", userToEat.id);
+
+            if (merciful) {
+                const UpdatedEndUser = await Users.findOneAndUpdate(
+                    {
+                        id: EndUser.id,
+                    },
+                    {
+                        $set: {
+                            bonesInStomach: 0,
+                        },
+                        $inc: {
+                            bonesCollected: bonesInStomach,
+                        },
+                    }
                 );
 
-            return {
-                embeds: [embed],
-            };
+                const embed = new EmbedBuilder()
+                    .setColor("Blue")
+                    .setTitle("Poisoned, but saved!")
+                    .setDescription(
+                        `Seems like **${userToEat.username}** had some rat poison and you violently threw them up.\n\n**However, they were merciful with you, helped you to the ground, called an ambulance, and let you keep your bones!**`
+                    );
+
+                UpdatedEndUser!.save();
+
+                return {
+                    embeds: [embed],
+                };
+            } else {
+                const UpdatedEndUser = await Users.findOneAndUpdate(
+                    {
+                        id: EndUser.id,
+                    },
+                    {
+                        $set: {
+                            bonesInStomach: 0,
+                        },
+                    }
+                );
+                const UpdatedOtherUser = await Users.findOneAndUpdate(
+                    {
+                        id: OtherUser.id,
+                    },
+                    {
+                        $inc: {
+                            bonesCollected: bonesInStomach,
+                        },
+                    }
+                );
+
+                const embed = new EmbedBuilder()
+                    .setColor("Red")
+                    .setTitle("Poisoned and ruined...")
+                    .setDescription(
+                        `Seems like **${userToEat.username}** had some rat poison and you violently threw them up.\n\n**They weren't too happy with that stunt you pulled, they beat you to the ground, didn't help and worst of all, stole all the bones from your stomach!**`
+                    );
+
+                UpdatedEndUser!.save();
+                UpdatedOtherUser!.save();
+
+                return {
+                    embeds: [embed],
+                };
+            }
         }
 
         let success: boolean;
@@ -179,16 +231,12 @@ export default {
             return {
                 embeds: [embed],
             };
-        } else {
-            const embed = new EmbedBuilder()
-                .setColor("#FF0000")
-                .setDescription(
-                    `You have failed to swallow ${pingedUserToEat}, maybe try again later, you might succeed next time!`
-                );
-
-            return {
-                embeds: [embed],
-            };
-        }
+        } else
+            return failCommand(
+                `You have failed to swallow ${pingedUserToEat}, maybe try again later, you might succeed next time!`,
+                cancelCooldown,
+                null,
+                false
+            );
     },
 } as CommandObject;

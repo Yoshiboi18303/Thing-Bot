@@ -1,4 +1,4 @@
-import { CommandObject, CommandType } from "wokcommands";
+import { CommandObject, CommandType, CooldownTypes } from "wokcommands";
 import Users from "../schemas/UserSchema";
 import { EmbedBuilder } from "discord.js";
 import { findOneUser } from "../utils";
@@ -10,6 +10,11 @@ export default {
     expectedArgs: "[@user]",
     reply: true,
     guildOnly: true,
+    cooldowns: {
+        type: CooldownTypes.perUser,
+        duration: "20 s",
+        errorMessage: "You can wait for {TIME}, come on..."
+    },
     callback: async ({ client, message }) => {
         const user = message!.mentions.users.first() || message!.author;
         const User = await findOneUser(user.id);

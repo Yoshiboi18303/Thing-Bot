@@ -98,6 +98,8 @@ export default {
 
                 await CaptorUserDiscord.send({
                     embeds: [userAttemptedEscapeEmbed],
+                }).catch(() => {
+                    return;
                 });
             }
 

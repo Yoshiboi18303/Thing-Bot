@@ -1,7 +1,7 @@
-import { CommandObject, CommandType } from "wokcommands";
+import { CommandObject, CommandType, CooldownTypes } from "wokcommands";
 import Users from "../schemas/UserSchema";
 import { EmbedBuilder } from "discord.js";
-import { findOneUser } from "../utils";
+import { failCommand, findOneUser } from "../utils";
 
 export default {
     description: "Finish off the prey inside of you",
@@ -9,23 +9,23 @@ export default {
     maxArgs: 0,
     guildOnly: true,
     reply: true,
-    callback: async ({ client, message }) => {
+    cooldowns: {
+        type: CooldownTypes.perUser,
+        duration: "5 m",
+        errorMessage: "Give your stomach {TIME} to rest, then try this again."
+    },
+    callback: async ({ client, message, cancelCooldown }) => {
         const author = message!.author;
         const EndUser = await findOneUser(author.id);
 
         const amountOfPeopleInStomach = EndUser.amountOfPeopleInStomach!;
 
-        if (amountOfPeopleInStomach <= 0) {
-            const embed = new EmbedBuilder()
-                .setColor("#FF0000")
-                .setDescription(
-                    "You don't have anyone inside of you, please eat someone then try this command again!"
-                );
-
-            return {
-                embeds: [embed],
-            };
-        }
+        if (amountOfPeopleInStomach <= 0) return failCommand(
+            "You don't have anyone inside of you, please eat someone then try this command again!",
+            cancelCooldown,
+            null,
+            false
+        )
 
         const baseNumber = 206; // The base amount of bones in the human body, used with our formula for how many bones the user gets
 
@@ -72,6 +72,8 @@ export default {
 
                     user.send({
                         embeds: [embed],
+                    }).catch(() => {
+                        return;
                     });
                 } else {
                     const embed = new EmbedBuilder()
@@ -82,6 +84,8 @@ export default {
 
                     user.send({
                         embeds: [embed],
+                    }).catch(() => {
+                        return;
                     });
                 }
             }
@@ -131,7 +135,7 @@ export default {
         } in your stomach, and earned ${bonesCollected} bones (which are now in your stomach) \`(I would recommend you get them out of there, because if you get digested by someone with those bones still inside of you, you will lose them)\`!`;
 
         if (stomachCapacityIncreases)
-            desc += `\n\n**Also, lucky you! Your stomach decided to hold more people! Your stomach capacity has rised by \`${stomachCapacityIncrease}\`!**`;
+            desc += `\n\n**Also, lucky you! Your stomach decided to hold more people! Your stomach capacity has risen by __\`${stomachCapacityIncrease}\`__!**`;
 
         const embed = new EmbedBuilder()
             .setColor("#00FF02")
